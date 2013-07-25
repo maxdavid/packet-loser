@@ -18,6 +18,7 @@
 # A spec file like that would run three tests; each with 40ms of delay on 
 # every 10th packet, with total transfer file sizes of 10, 20, and 30.
 #
+set -e
 
 SPECPATH=$1
 DEST_IP=${2:-"129.170.213.70/32"} # set a default IP here
@@ -31,15 +32,21 @@ fi
 
 while read LINE
 do
+  # Put our specs for the test into an array
   read -a SPECS <<< $LINE
+
   # Get the filepath of the file to be transferred
   TRANS_FILE=$($BIN_DIR/create_sized_file.sh ${SPECS[0]})
+
   # Start delaying every n packets to our target
   $BIN_DIR/delay_udp.sh ${SPECS[1]} ${SPECS[2]} $DEST_IP &
+
   # Grab the pid (so we can kill it later)
   DELAY_PID=$!
+
   # Transfer the sized file to our destination
   $BIN_DIR/scp_transfer.sh $TRANS_FILE $DEST_IP
+
   # Kill our packet capture
   kill -9 $DELAY_PID
 
