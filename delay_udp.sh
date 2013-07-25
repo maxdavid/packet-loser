@@ -3,12 +3,13 @@
 #
 # Delay every nth packet output by a given multiple of 10ms
 #
-# usage: ./delay_udp.sh <delay in ms> <n delay>
-#   $1 = number of milliseconds to delay packet
-#   $2 = n, as in 'every nth packet is delayed'
+# usage: ./delay_udp.sh <delay in ms> <n delay> [<dest_ip>]
+#   $1 : number of milliseconds to delay packet
+#   $2 : n, as in 'every nth packet is delayed'
+#  [$3]: destination ip to operate on (optional)
 #
 
-DST_IP=129.170.213.70/32
+DST_IP=${3:-"129.170.213.70/32"} # set default destination ip here
 OUT_ETH=eth0
 CIPHER=aes256cbc
 
