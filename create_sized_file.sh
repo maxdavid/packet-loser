@@ -28,13 +28,15 @@ create_file () {
   fi
   
   if [ -f $FILEPATH ]; then
-    echo "File of size $SIZE_IN_MB already exists, skipping creation."
+    echo "File of size $SIZE_IN_MB already exists, skipping creation." 1>&2
   else
-    echo "Creating file of size $SIZE_IN_MB ..."
+    echo "Creating file of size $SIZE_IN_MB ..." 1>&2
     dd if=/dev/zero of=$FILEPATH bs=$SIZE_IN_MB count=1 &> /dev/null
-    echo "File of size $SIZE_IN_MB created at $FILEPATH"
+    echo "File of size $SIZE_IN_MB created at $FILEPATH" 1>&2
   fi
 }
 
 create_file
+
 echo $FILEPATH
+exit 0
