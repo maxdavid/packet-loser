@@ -20,20 +20,21 @@ SIZE_IN_MB=$1
 SIZE_IN_MB+=M # suffix number with 'M'
 
 FILENAME=file_size$SIZE_IN_MB
-
+FILEPATH=$TESTING_DIR/$FILENAME
 
 create_file () {
   if [ ! -d $TESTING_DIR ]; then
     mkdir $TESTING_DIR
   fi
   
-  if [ -f $TESTING_DIR/$FILENAME ]; then
+  if [ -f $FILEPATH ]; then
     echo "File of size $SIZE_IN_MB already exists, skipping creation."
   else
     echo "Creating file of size $SIZE_IN_MB ..."
-    dd if=/dev/zero of=$TESTING_DIR/$FILENAME bs=$SIZE_IN_MB count=1 &> /dev/null
-    echo "File of size $SIZE_IN_MB created at $TESTING_DIR/$FILENAME"
+    dd if=/dev/zero of=$FILEPATH bs=$SIZE_IN_MB count=1 &> /dev/null
+    echo "File of size $SIZE_IN_MB created at $FILEPATH"
   fi
 }
 
 create_file
+echo $FILEPATH
