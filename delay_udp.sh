@@ -7,6 +7,7 @@
 #   $1 : number of milliseconds to delay packet
 #   $2 : n, as in 'every nth packet is delayed'
 #  [$3]: destination ip to operate on (optional)
+#  [$4]: additional naming characteristic (optional)
 #
 
 DST_IP=${3:-"129.170.213.70/32"} # set default destination ip here
@@ -27,6 +28,9 @@ MARK=777
 TEST_DIR=openvpn_delay$DELAY_MS
 TEST_DIR+=_every$NTH_DELAY
 TEST_DIR+=_$CIPHER
+if [[ ! -z $4 ]]; then
+  TEST_DIR+=_$4
+fi
 
 
 # delete old rules (this clears only the mangle table)
@@ -57,4 +61,3 @@ iptables -F
 iptables -X
 
 echo Done.
-exit 0
