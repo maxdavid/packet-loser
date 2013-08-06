@@ -23,6 +23,7 @@ set -e
 SPECPATH=$1
 DEST_IP=${2:-"129.170.213.70"} # set a default IP here
 
+HOST_TESTING_DIR="$(hostname -i | awk '{print $1}')_to_$DEST_IP"
 BIN_DIR='/home/max/vpn_client/test_scripts' # location of scripts
 
 # From delay_udp
@@ -70,6 +71,10 @@ function demangle() {
 
 
 # Main
+mkdir $HOST_TESTING_DIR -p
+chown max $HOST_TESTING_DIR
+cd $HOST_TESTING_DIR
+
 while read LINE
 do
   # Put our specs for the test into an array
