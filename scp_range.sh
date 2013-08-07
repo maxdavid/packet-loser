@@ -11,9 +11,14 @@
 # specify its parameters (size of file transfer, delay time, and the number 
 # between each delay), separated by a space. Like so:
 #
-#   10 40 10
-#   20 40 10
-#   30 40 10
+# delay  100MB  5   50     # each 5th packet delayed by 50ms
+# delay  100MB  5   100   
+# delay  100MB  5   1500 
+# drop   100MB  5          # each 5th packet dropped
+# trunc  100MB  5   200    # each 5th packet truncated to 200 bytes
+#
+# To consider: what transport is used (ssh, scp, ftp, nc/udp, nc/tcp) 
+#  
 #
 # A spec file like that would run three tests; each with 40ms of delay on 
 # every 10th packet, with total transfer file sizes of 10, 20, and 30.
@@ -72,7 +77,6 @@ function demangle() {
 
 # Main
 mkdir $HOST_TESTING_DIR -p
-chown max $HOST_TESTING_DIR
 cd $HOST_TESTING_DIR
 
 while read LINE
@@ -87,22 +91,23 @@ do
     TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_DELAY'_'$CIPHER'_filesize'$FILESIZE'M'
 
   mkdir $TEST_DIR -p
-  chown max $TEST_DIR
   cd $TEST_DIR
   
   mangle
 
   # Start recording data
-  ssh max@$DEST_IP "tshark -i $OUT_ETH -w $TEST_DIR -b filesize:1024 & echo \$! > /tmp/su.tshark.$$"
+  tshark -i $OUT_ETH -w $TEST_DIR -b filesize:1024 & echo $! > /tmp/su.tshark.$$
 
   # Transfer the sized file to our destination
-  su -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $DEST_IP'" max
+  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $DEST_IP'"
 
   # Kill our packet capture
-  ssh max@$DEST_IP "kill -9 \`cat /tmp/su.tshark.$$\`"
+  kill -9 $(cat /tmp/su.tshark.$$)
   
   demangle
 
   cd -
 
 done < $SPECPATH
+
+chown -R max:max $HOST_TESTING_DIR
