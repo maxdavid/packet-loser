@@ -23,5 +23,6 @@ DEST_IP=${2:-192.241.195.88} # define default destination ip here
 
 FILENAME=$(pwd)/$($BIN_DIR/create_sized_file.sh $SIZE_IN_MB)
 
+echo "Using scp to transfer a file of size $SIZE_IN_MB MB to $DEST_IP"
 scp $FILENAME $REMOTE_USER@$DEST_IP:$REMOTE_DIR
 
