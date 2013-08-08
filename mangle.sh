@@ -42,7 +42,7 @@ function mangle_delay() {
   DELAY_MS+=ms
   MARK=777  # can be any number
 
-  echo "Setting up iptables to delay every $NTH_PACKET by $DELAY_MS."
+  echo "Setting up iptables to delay every $NTH_PACKET packet by $DELAY_MS."
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
@@ -62,7 +62,7 @@ function mangle_trunc() {
 }
 
 function mangle_drop() {
-  echo "Setting up iptables to drop every $NTH_PACKET."
+  echo "Setting up iptables to drop every $NTH_PACKET packet."
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
