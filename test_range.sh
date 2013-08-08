@@ -11,33 +11,39 @@
 # specify its parameters (size of file transfer, delay time, and the number 
 # between each delay), separated by a space. Like so:
 #
-#   10 40 10
-#   20 40 10
-#   30 40 10
+# delay  100MB  5   50     # each 5th packet delayed by 50ms
+# delay  100MB  5   100   
+# delay  100MB  5   1500 
+# drop   100MB  5          # each 5th packet dropped
+# trunc  100MB  5   200    # each 5th packet truncated to 200 bytes
+#
+# To consider: what transport is used (ssh, scp, ftp, nc/udp, nc/tcp) 
+#  
 #
 # A spec file like that would run three tests; each with 40ms of delay on 
 # every 10th packet, with total transfer file sizes of 10, 20, and 30.
 #
-set -e
+#set -e
 
 SPECPATH=$1
-DEST_IP=${2:-"129.170.213.70"} # set a default IP here
+DEST_IP=${2:-"192.241.195.88"} # set a default IP here
+CLIENT_IP='129.170.212.165'
 
 HOST_TESTING_DIR="$(hostname -i | awk '{print $1}')_to_$DEST_IP"
-BIN_DIR='/home/max/vpn_client/test_scripts' # location of scripts
+BIN_DIR='/home/max/vpn_client/packet-loser' # location of scripts
 
 # From delay_udp
 OUT_ETH=eth0
-CIPHER=aes256cbc
+CIPHER=bf-cbc
 
 if [ ! -f $SPECPATH ]; then
   echo "No such file, ya dummy."
   exit 1
 fi
 
-function mangle() {
+function mangle_delay() {
   DELAY_MS+=ms
-  WHICH_IN_N=$(expr $NTH_DELAY - 1)
+  WHICH_IN_N=$(expr $NTH_PACKET - 1)
   MARK=777
 
   # delete old rules (this clears only the mangle table)
@@ -45,7 +51,7 @@ function mangle() {
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
-  iptables -t mangle -A POSTROUTING -d $DEST_IP'/32' -o $OUT_ETH -m statistic --mode nth --every $NTH_DELAY --packet $WHICH_IN_N -j MARK --set-mark $MARK
+  iptables -t mangle -A POSTROUTING -d $DEST_IP'/32' -o $OUT_ETH -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j MARK --set-mark $MARK
 
   # delete queue tree on outgoing interface
   tc qdisc  del dev $OUT_ETH root
@@ -56,6 +62,16 @@ function mangle() {
   tc filter add dev $OUT_ETH protocol ip parent 1:0 handle $MARK fw flowid 1:3
 }
 
+function mangle_drop() {
+  WHICH_IN_N=$(expr $NTH_PACKET - 1)
+
+  # delete old rules (this clears only the mangle table)
+  iptables -t mangle -F
+
+  # This rule marks outgoing packets for delay. Routing queues will
+  #   put packets in the delaying queue if they match the mark.
+  iptables -t mangle -A POSTROUTING -d $DEST_IP'/32' -o $OUT_ETH -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j DROP
+}
 
 function demangle() {
   echo
@@ -72,48 +88,50 @@ function demangle() {
 
 # Main
 mkdir $HOST_TESTING_DIR -p
-chown max $HOST_TESTING_DIR
 cd $HOST_TESTING_DIR
 
-while read LINE
-do
-  # Put our specs for the test into an array
-  read -a SPECS <<< $LINE
-  FILESIZE=${SPECS[0]}
-  DELAY_MS=${SPECS[1]}
-  NTH_DELAY=${SPECS[2]}
+TEST_SPECS=$(cat $SPECPATH)  # Grab all our specs into a variable
 
-  # Get the filepath of the file to be transferred
-  TRANS_FILE=$(pwd)/$($BIN_DIR/create_sized_file.sh $FILESIZE)
+# IFS line delimited hack from http://blog.edwards-research.com/2010/01/quick-bash-trick-looping-through-output-lines/
+OIFS="${IFS}"  # Save our old IFS (Internal Field Separator)
+NIFS=$'\n'     # Save a new IFS (here, a newline)
+IFS="${NIFS}"  # Set our IFS to the new one
+
+for LINE in $TEST_SPECS  # This is where we need our IFS='\n'
+do
+  IFS="${OIFS}"
+  read -a SPECS <<< "$LINE"  # Put our specs for the test into an array (IFS=' ')
+  MANGLE_METHOD=${SPECS[0]}  # Can be 'delay' or 'drop'
+  FILESIZE=${SPECS[1]}       # Size of the file to be transferred
+  NTH_PACKET=${SPECS[2]}     # Size of n (operation applied to every nth packet)
+
+  if [[ $MANGLE_METHOD == "delay" ]]; then
+    DELAY_MS=${SPECS[3]}     # If we're delaying, grab the delay time
+  fi
+
+  IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
-  TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_DELAY'_'$CIPHER'_filesize'$FILESIZE'M'
+  TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_PACKET'_'$CIPHER'_filesize'$FILESIZE'M'
 
-  # Start delaying every n packets to our target
-  # $BIN_DIR/delay_udp.sh ${SPECS[1]} ${SPECS[2]} $DEST_IP filesize${SPECS[2]}M &
   mkdir $TEST_DIR -p
-  chown max $TEST_DIR
   cd $TEST_DIR
   
-  # Start delaying our packets accordingly
-  mangle
-  
-  # Start recording data
-  su max -c "tshark -i $OUT_ETH -w $TEST_DIR -b filesize:1024 & echo \$! > /tmp/su.tshark.$$"
+  mangle_$MANGLE_METHOD
 
-  # Grab the tshark pid (so we can kill it later)
-  #DELAY_PID=$(pgrep -P $!)
+  # Start recording data
+  tshark -i $OUT_ETH -w $TEST_DIR & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
-  su -c "$BIN_DIR/scp_transfer.sh $TRANS_FILE" max
+  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $DEST_IP'"
 
   # Kill our packet capture
-  kill -9 $(cat /tmp/su.tshark.$$)
-
-  # File transfer done, reset our connection
+  kill $CAPTURE_PID
+  
   demangle
 
-  cd -
+  cd - &> /dev/null
+done
 
-done < $SPECPATH
-
+IFS="${OIFS}"  # Reset our IFS
+cd $BIN_DIR
