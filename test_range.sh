@@ -39,61 +39,19 @@ CLIENT_IP=${3:-"129.170.212.165"}    # set a default client IP here
 VPN_TYPE=openvpn  # Type of VPN used (used for naming test data directory)
 CIPHER=bf-cbc     # Cipher for VPN (used for naming test data directory)
 
-BIN_DIR=$(dirname $BASH_SOURCE)
+BIN_DIR='/home/max/vpn_client/packet-loser'
 OUT_IFACE=eth0   # Interface to operate on
 
-if [ ! -f $SPECPATH ]; then
+if [ -z $SPECPATH ]; then
+  echo "No spec file specified."
+  exit 1
+elif [ ! -f $SPECPATH ]; then
   echo "No such file, ya dummy."
   exit 1
-elif [[ ! $(whoami) == 'root' ]]; then
+elif [[ $(whoami) != 'root' ]]; then
   echo "You should probably run this as root."
   exit 1
 fi
-
-
-function mangle_delay() {
-  DELAY_MS+=ms
-  WHICH_IN_N=$(expr $NTH_PACKET - 1)
-  MARK=777
-
-  # delete old rules (this clears only the mangle table)
-  iptables -t mangle -F
-
-  # This rule marks outgoing packets for delay. Routing queues will
-  #   put packets in the delaying queue if they match the mark.
-  iptables -t mangle -A POSTROUTING -d $SERVER_IP'/32' -o $OUT_IFACE -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j MARK --set-mark $MARK
-
-  # delete queue tree on outgoing interface
-  tc qdisc  del dev $OUT_IFACE root
-
-  # set up queues on outgoing interface
-  tc qdisc  add dev $OUT_IFACE root handle 1: prio
-  tc qdisc  add dev $OUT_IFACE parent 1:3 handle 30: netem delay $DELAY_MS
-  tc filter add dev $OUT_IFACE protocol ip parent 1:0 handle $MARK fw flowid 1:3
-}
-
-function mangle_drop() {
-  WHICH_IN_N=$(expr $NTH_PACKET - 1)
-
-  # delete old rules (this clears only the mangle table)
-  iptables -t mangle -F
-
-  # This rule marks outgoing packets for delay. Routing queues will
-  #   put packets in the delaying queue if they match the mark.
-  iptables -t mangle -A POSTROUTING -d $SERVER_IP'/32' -o $OUT_IFACE -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j DROP
-}
-
-function demangle() {
-  echo
-  echo "Resetting iptables..."
-  iptables -P INPUT ACCEPT
-  iptables -P FORWARD ACCEPT
-  iptables -P OUTPUT ACCEPT
-  iptables -F
-  iptables -X
-
-  echo "iptables reset."
-}
 
 
 # Main
@@ -108,20 +66,18 @@ OIFS="${IFS}"  # Save our old IFS (Internal Field Separator)
 NIFS=$'\n'     # Save a new IFS (here, a newline)
 IFS="${NIFS}"  # Set our IFS to the new one
 
+COUNT=0
 for LINE in $TEST_SPECS  # This is where we need our IFS='\n'
 do
-  IFS="${OIFS}"
-  read -a SPECS <<< "$LINE"  # Put our specs for the test into an array (IFS=' ')
-  MANGLE_METHOD=${SPECS[0]}  # Can be 'delay' or 'drop'
+  COUNT=$(expr $COUNT + 1)
+  echo "Starting Test $COUNT ------------------------------------------------"
+
+  IFS="${OIFS}"  # Set IFS to ' ' for array parsing
+  read -a SPECS <<< "$LINE"  # Put our specs for the test into an array
+  MANGLE_TYPE=${SPECS[0]}    # Can be 'delay', 'drop', or 'trunc'
   FILESIZE=${SPECS[1]}       # Size of the file to be transferred
   NTH_PACKET=${SPECS[2]}     # Size of n (operation applied to every nth packet)
-
-  if [[ $MANGLE_METHOD == "delay" ]]; then
-    DELAY_MS=${SPECS[3]}     # If we're delaying, grab the delay time
-  elif [[ $MANGLE_METHOD == "trunc" ]]; then
-    TRUNC_LEN=${SPECS[3]}    # If we're truncating, grab the num of bytes
-  fi
-
+  ADD_PARAM=${SPECS[3]}      # delay time or truncate len, depends on mangle type
   IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
@@ -130,10 +86,10 @@ do
   mkdir $TEST_DIR -p
   cd $TEST_DIR
   
-  mangle_$MANGLE_METHOD
+  $BIN_DIR/mangle.sh $SERVER_IP $MANGLE_TYPE $NTH_PACKET $ADD_PARAM
 
   # Start recording data
-  tshark -i $OUT_IFACE -w $TEST_DIR & CAPTURE_PID=$!
+  tshark -i $OUT_IFACE -w $TEST_DIR 1> /dev/null & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
   su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $SERVER_IP'"
@@ -141,7 +97,7 @@ do
   # Kill our packet capture
   kill $CAPTURE_PID
   
-  demangle
+  $BIN_DIR/mangle.sh $SERVER_IP 'clean'
 
   cd $HOST_TESTING_DIR &> /dev/null
 done
