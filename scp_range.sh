@@ -79,13 +79,21 @@ function demangle() {
 mkdir $HOST_TESTING_DIR -p
 cd $HOST_TESTING_DIR
 
-while read LINE
+TEST_SPECS=$(cat $SPECPATH)  # Grab all our specs into a variable
+
+# IFS line delimited hack from http://blog.edwards-research.com/2010/01/quick-bash-trick-looping-through-output-lines/
+OIFS="${IFS}"  # Save our old IFS (Internal Field Separator)
+NIFS=$'\n'     # Save a new IFS (here, a newline)
+IFS="${NIFS}"  # Set our IFS to the new one
+
+for LINE in $TEST_SPECS  # This is where we need our IFS='\n'
 do
-  # Put our specs for the test into an array
-  read -a SPECS <<< "$LINE"
+  IFS="${OIFS}"
+  read -a SPECS <<< "$LINE"  # Put our specs for the test into an array (IFS=' ')
   FILESIZE=${SPECS[0]}
   NTH_DELAY=${SPECS[1]}
   DELAY_MS=${SPECS[2]}
+  IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
   TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_DELAY'_'$CIPHER'_filesize'$FILESIZE'M'
@@ -107,7 +115,7 @@ do
   demangle
 
   cd - &> /dev/null
+done
 
-done < $SPECPATH
-
+IFS="${OIFS}"  # Reset our IFS
 cd $BIN_DIR
