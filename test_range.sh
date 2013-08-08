@@ -1,40 +1,46 @@
 #!/bin/bash
 #
-# Specify a range of delay times, nth delays, and transfer sizes to be tested.
+# Specify a range of specifications to be tested. The type of mangling, 
+# transfer file size, nth space, and other specs can be written into a file 
+# for batch testing.
 #
 # usage:
-#   test_range.sh <spec_file> [<destination_ip>]
+#   test_range.sh <spec_file> [<server_ip>] [<client_ip>]
 #     $1 : file path of the spec file
-#     $2 : destination IP to operate on (optional if defined here)
+#     $2 : server IP address (optional if defined below)
+#     $3 : client IP address (optional if defined below)
 # 
-# Spec file is made simply. Each line is an individual test, with numbers to 
-# specify its parameters (size of file transfer, delay time, and the number 
-# between each delay), separated by a space. Like so:
+# Spec file is made simply. Each line is an individual test with parameters 
+# separated by spaces. Each parameter, with its options:
+#   1 - how to mangle the connection. can be delay, drop, trunc, or reset
+#   2 - the size (in MB) of the file to be transferred.
+#   3 - n, as in "operate on every nth packet"
+#   4 - variable based on mangle type:
+#         if using delay, the delay time in milliseconds (ms)
+#         if using trunc, the number of bytes truncated from the packet
 #
-# delay  100MB  5   50     # each 5th packet delayed by 50ms
-# delay  100MB  5   100   
-# delay  100MB  5   1500 
-# drop   100MB  5          # each 5th packet dropped
-# trunc  100MB  5   200    # each 5th packet truncated to 200 bytes
+# An example spec file:
 #
-# To consider: what transport is used (ssh, scp, ftp, nc/udp, nc/tcp) 
+# delay  100   5   50     # every 5th packet delayed by 50ms in a 100MB transfer
+# delay  100   5   100    # every 5th packet delayed by 100ms in a 100MB transfer
+# delay  100   10  150    # every 5th packet delayed by 150ms in a 100MB transfer
+# drop   100   5          # every 5th packet dropped in a 100MB transfer
+# drop   100   10         # every 10th packet dropped in a 100MB transfer
+# trunc  100   5   200    # every 5th packet truncated to 200 bytes in a 100MB transfer
+#
+# TODO: what transport is used (ssh, scp, ftp, nc/udp, nc/tcp) 
 #  
-#
-# A spec file like that would run three tests; each with 40ms of delay on 
-# every 10th packet, with total transfer file sizes of 10, 20, and 30.
-#
-#set -e
+# set -e
 
 SPECPATH=$1
-DEST_IP=${2:-"192.241.195.88"} # set a default IP here
-CLIENT_IP='129.170.212.165'
+SERVER_IP=${2:-"192.241.195.88"}     # set a default server IP here
+CLIENT_IP=${3:-"129.170.212.165"}    # set a default client IP here
 
-HOST_TESTING_DIR="$(hostname -i | awk '{print $1}')_to_$DEST_IP"
+CIPHER=bf-cbc    # Cipher for VPN (used for naming test data directory)
+
 BIN_DIR='/home/max/vpn_client/packet-loser' # location of scripts
 
-# From delay_udp
-OUT_ETH=eth0
-CIPHER=bf-cbc
+OUT_IFACE=eth0   # Interface to operate on
 
 if [ ! -f $SPECPATH ]; then
   echo "No such file, ya dummy."
@@ -51,15 +57,15 @@ function mangle_delay() {
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
-  iptables -t mangle -A POSTROUTING -d $DEST_IP'/32' -o $OUT_ETH -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j MARK --set-mark $MARK
+  iptables -t mangle -A POSTROUTING -d $SERVER_IP'/32' -o $OUT_IFACE -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j MARK --set-mark $MARK
 
   # delete queue tree on outgoing interface
-  tc qdisc  del dev $OUT_ETH root
+  tc qdisc  del dev $OUT_IFACE root
 
   # set up queues on outgoing interface
-  tc qdisc  add dev $OUT_ETH root handle 1: prio
-  tc qdisc  add dev $OUT_ETH parent 1:3 handle 30: netem delay $DELAY_MS
-  tc filter add dev $OUT_ETH protocol ip parent 1:0 handle $MARK fw flowid 1:3
+  tc qdisc  add dev $OUT_IFACE root handle 1: prio
+  tc qdisc  add dev $OUT_IFACE parent 1:3 handle 30: netem delay $DELAY_MS
+  tc filter add dev $OUT_IFACE protocol ip parent 1:0 handle $MARK fw flowid 1:3
 }
 
 function mangle_drop() {
@@ -70,7 +76,7 @@ function mangle_drop() {
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
-  iptables -t mangle -A POSTROUTING -d $DEST_IP'/32' -o $OUT_ETH -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j DROP
+  iptables -t mangle -A POSTROUTING -d $SERVER_IP'/32' -o $OUT_IFACE -m statistic --mode nth --every $NTH_PACKET --packet $WHICH_IN_N -j DROP
 }
 
 function demangle() {
@@ -87,6 +93,7 @@ function demangle() {
 
 
 # Main
+HOST_TESTING_DIR=$CLIENT_IP"_to_"$SERVER_IP  # Name of dir for this test batch
 mkdir $HOST_TESTING_DIR -p
 cd $HOST_TESTING_DIR
 
@@ -107,6 +114,8 @@ do
 
   if [[ $MANGLE_METHOD == "delay" ]]; then
     DELAY_MS=${SPECS[3]}     # If we're delaying, grab the delay time
+  elif [[ $MANGLE_METHOD == "trunc" ]]; then
+    TRUNC_LEN=${SPECS[3]}    # If we're truncating, grab the num of bytes
   fi
 
   IFS="${NIFS}"  # Reset IFS to '\n'
@@ -120,10 +129,10 @@ do
   mangle_$MANGLE_METHOD
 
   # Start recording data
-  tshark -i $OUT_ETH -w $TEST_DIR & CAPTURE_PID=$!
+  tshark -i $OUT_IFACE -w $TEST_DIR & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
-  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $DEST_IP'"
+  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $SERVER_IP'"
 
   # Kill our packet capture
   kill $CAPTURE_PID
