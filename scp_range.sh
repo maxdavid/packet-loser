@@ -82,13 +82,13 @@ cd $HOST_TESTING_DIR
 while read LINE
 do
   # Put our specs for the test into an array
-  read -a SPECS <<< $LINE
+  read -a SPECS <<< "$LINE"
   FILESIZE=${SPECS[0]}
-  DELAY_MS=${SPECS[1]}
-  NTH_DELAY=${SPECS[2]}
+  NTH_DELAY=${SPECS[1]}
+  DELAY_MS=${SPECS[2]}
 
   # Name of directory to store testing data
-    TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_DELAY'_'$CIPHER'_filesize'$FILESIZE'M'
+  TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_DELAY'_'$CIPHER'_filesize'$FILESIZE'M'
 
   mkdir $TEST_DIR -p
   cd $TEST_DIR
@@ -96,18 +96,18 @@ do
   mangle
 
   # Start recording data
-  tshark -i $OUT_ETH -w $TEST_DIR -b filesize:1024 & echo $! > /tmp/su.tshark.$$
+  tshark -i $OUT_ETH -w $TEST_DIR -b filesize:1024 & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
   su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $DEST_IP'"
 
   # Kill our packet capture
-  kill -9 $(cat /tmp/su.tshark.$$)
+  kill $CAPTURE_PID
   
   demangle
 
-  cd -
+  cd - &> /dev/null
 
 done < $SPECPATH
 
-chown -R max:max $HOST_TESTING_DIR
+cd $BIN_DIR
