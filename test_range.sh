@@ -36,16 +36,20 @@ SPECPATH=$1
 SERVER_IP=${2:-"192.241.195.88"}     # set a default server IP here
 CLIENT_IP=${3:-"129.170.212.165"}    # set a default client IP here
 
-CIPHER=bf-cbc    # Cipher for VPN (used for naming test data directory)
+VPN_TYPE=openvpn  # Type of VPN used (used for naming test data directory)
+CIPHER=bf-cbc     # Cipher for VPN (used for naming test data directory)
 
-BIN_DIR='/home/max/vpn_client/packet-loser' # location of scripts
-
+BIN_DIR=$(dirname $BASH_SOURCE)
 OUT_IFACE=eth0   # Interface to operate on
 
 if [ ! -f $SPECPATH ]; then
   echo "No such file, ya dummy."
   exit 1
+elif [[ ! $(whoami) == 'root' ]]; then
+  echo "You should probably run this as root."
+  exit 1
 fi
+
 
 function mangle_delay() {
   DELAY_MS+=ms
@@ -93,7 +97,7 @@ function demangle() {
 
 
 # Main
-HOST_TESTING_DIR=$CLIENT_IP"_to_"$SERVER_IP  # Name of dir for this test batch
+HOST_TESTING_DIR=$(pwd)/$CLIENT_IP"_to_"$SERVER_IP  # Name of dir for this test batch
 mkdir $HOST_TESTING_DIR -p
 cd $HOST_TESTING_DIR
 
@@ -121,7 +125,7 @@ do
   IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
-  TEST_DIR='openvpn_delay'$DELAY_MS'_every'$NTH_PACKET'_'$CIPHER'_filesize'$FILESIZE'M'
+  TEST_DIR=$VPN_TYPE'_delay'$DELAY_MS'_every'$NTH_PACKET'_'$CIPHER'_filesize'$FILESIZE'M'
 
   mkdir $TEST_DIR -p
   cd $TEST_DIR
@@ -139,7 +143,7 @@ do
   
   demangle
 
-  cd - &> /dev/null
+  cd $HOST_TESTING_DIR &> /dev/null
 done
 
 IFS="${OIFS}"  # Reset our IFS
