@@ -22,7 +22,6 @@
 SERVER_IP=$1
 MANGLE_TYPE=$2
 NTH_PACKET=$3
-WHICH_IN_N=$(expr $NTH_PACKET - 1) # needed for statistic syntax
 
 if [ -z "$SERVER_IP" ]; then
   echo "Need outgoing IP. Exiting."
@@ -43,6 +42,7 @@ function mangle_delay() {
   MARK=777  # can be any number
 
   echo "Setting up iptables to delay every $NTH_PACKET packet by $DELAY_MS."
+  WHICH_IN_N=$(expr $NTH_PACKET - 1) # needed for statistic syntax
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
@@ -63,6 +63,7 @@ function mangle_trunc() {
 
 function mangle_drop() {
   echo "Setting up iptables to drop every $NTH_PACKET packet."
+  WHICH_IN_N=$(expr $NTH_PACKET - 1) # needed for statistic syntax
 
   # This rule marks outgoing packets for delay. Routing queues will
   #   put packets in the delaying queue if they match the mark.
@@ -70,6 +71,7 @@ function mangle_drop() {
 }
 
 function demangle() {
+  echo
   echo "Resetting iptables..."
   iptables -P INPUT ACCEPT
   iptables -P FORWARD ACCEPT
@@ -86,7 +88,6 @@ function demangle() {
 
 # delete old rules (this clears only the mangle table)
 iptables -t mangle -F
-echo
 
 if [ "$MANGLE_TYPE" == "delay" ]; then
   DELAY_MS=$4
@@ -103,4 +104,5 @@ else
   exit 1
 fi
 
+echo
 exit 0
