@@ -18,6 +18,7 @@
 TRANS_TYPE=$1
 SIZE_IN_MB=${2:-100}
 DEST_IP=${3:-192.241.195.88} # define default destination ip here
+CLIENT_IP=$(hostname -i | awk '{print $1}')
 
 if [ -z $TRANS_TYPE ]; then
   echo "No transfer method specified."
@@ -45,12 +46,12 @@ if [ "$TRANS_TYPE" == "scp" ]; then
   scp $FILENAME $REMOTE_USER@$DEST_IP:$REMOTE_DIR
 elif [ "$TRANS_TYPE" == "nc-tcp" ]; then
   echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over TCP"
-  ssh $REMOTE_USER@$DEST_IP "nc -l $PORTNUM & echo \$! > /tmp/nc.tcp.$$"
+  ssh $REMOTE_USER@$DEST_IP "nc -w2 -l -p $PORTNUM & echo \$! > /tmp/nc.tcp.$$"
   cat $FILENAME | nc $DEST_IP $PORTNUM
-  ssh $REMOTE_USER@$DEST_IP "kill `cat /tmp/nc.tcp.$$`"
+  ssh $REMOTE_USER@$DEST_IP "kill \`cat /tmp/nc.tcp.$$\`"
 elif [ "$TRANS_TYPE" == "nc-udp" ]; then
   echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over UDP"
-  ssh $REMOTE_USER@$DEST_IP "nc -u -l $PORTNUM & echo \$! > /tmp/nc.udp.$$"
+  ssh $REMOTE_USER@$DEST_IP "nc -u -w2 -l -p $PORTNUM & echo \$! > /tmp/nc.udp.$$"
   cat $FILENAME | nc -u $DEST_IP $PORTNUM
   ssh $REMOTE_USER@$DEST_IP "kill \`cat /tmp/nc.udp.$$\`"
 fi
