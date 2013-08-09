@@ -92,7 +92,7 @@ do
   tshark -i $OUT_IFACE -w $TEST_DIR 1> /dev/null & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
-  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/create_and_scp.sh $FILESIZE $SERVER_IP'"
+  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/transfer.sh nc-tcp $FILESIZE $SERVER_IP'"
 
   # Kill our packet capture
   kill $CAPTURE_PID

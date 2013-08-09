@@ -32,6 +32,7 @@ BIN_DIR='/home/max/storage/ists/vpn/packet-loser'
 REMOTE_USER=max
 #REMOTE_PASS= (using a passwordless dsa key now)
 REMOTE_DIR=/dev/null  # location on target IP to transfer files to
+PORTNUM=31337         # for netcat
 
 
 # Main
@@ -42,6 +43,16 @@ FILENAME=$(pwd)/$($BIN_DIR/create_sized_file.sh $SIZE_IN_MB)
 if [ "$TRANS_TYPE" == "scp" ]; then
   echo "Using scp to transfer a file of size $SIZE_IN_MB MB to $DEST_IP"
   scp $FILENAME $REMOTE_USER@$DEST_IP:$REMOTE_DIR
+elif [ "$TRANS_TYPE" == "nc-tcp" ]; then
+  echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over TCP"
+  ssh $REMOTE_USER@$DEST_IP "nc -l $PORTNUM & echo \$! > /tmp/nc.tcp.$$"
+  cat $FILENAME | nc $DEST_IP $PORTNUM
+  ssh $REMOTE_USER@$DEST_IP "kill `cat /tmp/nc.tcp.$$`"
+elif [ "$TRANS_TYPE" == "nc-udp" ]; then
+  echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over UDP"
+  ssh $REMOTE_USER@$DEST_IP "nc -u -l $PORTNUM & echo \$! > /tmp/nc.udp.$$"
+  cat $FILENAME | nc -u $DEST_IP $PORTNUM
+  ssh $REMOTE_USER@$DEST_IP "kill \`cat /tmp/nc.udp.$$\`"
 fi
 
 
