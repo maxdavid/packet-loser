@@ -34,7 +34,7 @@
 
 SPECPATH=$1
 SERVER_IP=${2:-"192.241.195.88"}     # set a default server IP here
-CLIENT_IP=${3:-"129.170.212.165"}    # set a default client IP here
+CLIENT_IP=${3:-"129.170.212.196"}    # set a default client IP here
 
 VPN_TYPE=openvpn  # Type of VPN used (used for naming test data directory)
 CIPHER=bf-cbc     # Cipher for VPN (used for naming test data directory)
