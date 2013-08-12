@@ -33,7 +33,7 @@ TESTING_DIR="$BIN_DIR/transfer_files"
 REMOTE_USER=max
 #REMOTE_PASS= (using a passwordless dsa key now)
 REMOTE_DIR=/dev/null  # location on target IP to transfer files to
-PORTNUM=4000         # for netcat
+PORTNUM=4000          # for netcat
 
 
 # Main
@@ -51,8 +51,9 @@ elif [ "$TRANS_TYPE" == "nc-tcp" ]; then
   cat "$FILENAME" | nc $DEST_IP $PORTNUM
 
 elif [ "$TRANS_TYPE" == "nc-udp" ]; then
+  echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over UDP"
   ssh -i ~/.ssh/id_dsa $REMOTE_USER@$DEST_IP "nc -u -dl $PORTNUM > wat.tmp &"
-  cat "$FILENAME" | nc -u $DEST_IP $PORTNUM
+  cat "$FILENAME" | nc -u -w5 $DEST_IP $PORTNUM  # -w5 seems to help data integrity
 fi
 
 
