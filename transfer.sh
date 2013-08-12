@@ -26,8 +26,8 @@ if [ -z $TRANS_TYPE ]; then
   exit 1
 fi
 
-TESTING_DIR=transfer_files  # directory where sized transfer files are stored
-BIN_DIR='/home/max/storage/ists/vpn/packet-loser'
+BIN_DIR="/home/max/storage/ists/vpn/packet-loser"
+TESTING_DIR="$BIN_DIR/transfer_files"
 
 # scp information
 REMOTE_USER=max
@@ -47,11 +47,11 @@ if [ "$TRANS_TYPE" == "scp" ]; then
 
 elif [ "$TRANS_TYPE" == "nc-tcp" ]; then
   echo "Using netcat to transfer a file of size $SIZE_IN_MB MB to $DEST_IP over TCP"
-  ssh -i ~/.ssh/id_dsa $REMOTE_USER@$DEST_IP "nc -l $PORTNUM > wat.tmp &"
+  ssh -i ~/.ssh/id_dsa $REMOTE_USER@$DEST_IP "nc -dl $PORTNUM > wat.tmp &"
   cat "$FILENAME" | nc $DEST_IP $PORTNUM
 
 elif [ "$TRANS_TYPE" == "nc-udp" ]; then
-  ssh -i ~/.ssh/id_dsa $REMOTE_USER@$DEST_IP "nc -u -l $PORTNUM > wat.tmp &"
+  ssh -i ~/.ssh/id_dsa $REMOTE_USER@$DEST_IP "nc -u -dl $PORTNUM > wat.tmp &"
   cat "$FILENAME" | nc -u $DEST_IP $PORTNUM
 fi
 
