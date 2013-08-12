@@ -83,7 +83,9 @@ do
   IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
-  TEST_DIR=$VPN_TYPE'_delay'$DELAY_MS'_every'$NTH_PACKET'_'$CIPHER'_filesize'$FILESIZE'M'
+  # Creates a dir with information about the test separated by underscores
+  # Note: does not include size of file transfer.
+  TEST_DIR=$VPN_TYPE'_'$CIPHER'_'$MANGLE_TYPE$ADD_PARAM'_every'$NTH_PACKET'_'$TRANS_TYPE
 
   mkdir $TEST_DIR -p
   cd $TEST_DIR
