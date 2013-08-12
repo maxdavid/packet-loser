@@ -13,20 +13,21 @@
 # Spec file is made simply. Each line is an individual test with parameters 
 # separated by spaces. Each parameter, with its options:
 #   1 - how to mangle the connection. can be delay, drop, trunc, or reset
-#   2 - the size (in MB) of the file to be transferred.
-#   3 - n, as in "operate on every nth packet"
-#   4 - variable based on mangle type:
+#   2 - the file transfer method. can be 'scp', 'nc-tcp', 'nc-udp', or 'ftp'
+#   3 - the size (in MB) of the file to be transferred.
+#   4 - n, as in "operate on every nth packet"
+#   5 - variable based on mangle type:
 #         if using delay, the delay time in milliseconds (ms)
 #         if using trunc, the number of bytes truncated from the packet
 #
 # An example spec file:
 #
-# delay  100   5   50     # every 5th packet delayed by 50ms in a 100MB transfer
-# delay  100   5   100    # every 5th packet delayed by 100ms in a 100MB transfer
-# delay  100   10  150    # every 5th packet delayed by 150ms in a 100MB transfer
-# drop   100   5          # every 5th packet dropped in a 100MB transfer
-# drop   100   10         # every 10th packet dropped in a 100MB transfer
-# trunc  100   5   200    # every 5th packet truncated to 200 bytes in a 100MB transfer
+# delay  scp     100   5   50     # every 5th packet delayed by 50ms in a 100MB transfer
+# delay  scp     100   5   100    # every 5th packet delayed by 100ms in a 100MB transfer
+# delay  nc-tcp  100   10  150    # every 5th packet delayed by 150ms in a 100MB transfer
+# drop   nc-tcp  100   5          # every 5th packet dropped in a 100MB transfer
+# drop   nc-udp  100   10         # every 10th packet dropped in a 100MB transfer
+# trunc  nc-udp  100   5   200    # every 5th packet truncated to 200 bytes in a 100MB transfer
 #
 # TODO: what transport is used (ssh, scp, ftp, nc/udp, nc/tcp) 
 #  
@@ -75,9 +76,10 @@ do
   IFS="${OIFS}"  # Set IFS to ' ' for array parsing
   read -a SPECS <<< "$LINE"  # Put our specs for the test into an array
   MANGLE_TYPE=${SPECS[0]}    # Can be 'delay', 'drop', or 'trunc'
-  FILESIZE=${SPECS[1]}       # Size of the file to be transferred
-  NTH_PACKET=${SPECS[2]}     # Size of n (operation applied to every nth packet)
-  ADD_PARAM=${SPECS[3]}      # delay time or truncate len, depends on mangle type
+  TRANS_TYPE=${SPECS[1]}     # Can be 'scp', 'nc-tcp', 'nc-udp', or 'ftp'
+  FILESIZE=${SPECS[2]}       # Size of the file to be transferred
+  NTH_PACKET=${SPECS[3]}     # Size of n (operation applied to every nth packet)
+  ADD_PARAM=${SPECS[4]}      # delay time or truncate len, depends on mangle type
   IFS="${NIFS}"  # Reset IFS to '\n'
 
   # Name of directory to store testing data
@@ -92,7 +94,7 @@ do
   tshark -i $OUT_IFACE -w $TEST_DIR 1> /dev/null & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
-  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/transfer.sh nc-tcp $FILESIZE $SERVER_IP'"
+  su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/transfer.sh $TRANS_TYPE $FILESIZE $SERVER_IP'"
 
   # Kill our packet capture
   kill $CAPTURE_PID
