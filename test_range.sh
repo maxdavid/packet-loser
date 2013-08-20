@@ -105,6 +105,8 @@ CAP_NAME=$TEST_DIR'_filesize'$FILESIZE'M'
   $BIN_DIR/mangle.sh $SERVER_IP 'clean'
 
   cd $HOST_TESTING_DIR &> /dev/null
+  
+  $BIN_DIR/tarscp.sh $CLIENT_IP $CIPHER $TEST_DIR
 done
 
 IFS="${OIFS}"  # Reset our IFS
