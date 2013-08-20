@@ -94,7 +94,7 @@ CAP_NAME=$TEST_DIR'_filesize'$FILESIZE'M'
   $BIN_DIR/mangle.sh $SERVER_IP $MANGLE_TYPE $NTH_PACKET $ADD_PARAM
 
   # Start recording data
-  tshark -i $OUT_IFACE -w $CAP_NAME 1> /dev/null & CAPTURE_PID=$!
+  tshark -i $OUT_IFACE -w $CAP_NAME -s 60 1> /dev/null & CAPTURE_PID=$!
 
   # Transfer the sized file to our destination
   su max -c "ssh max@$CLIENT_IP '/home/max/storage/ists/vpn/packet-loser/transfer.sh $TRANS_TYPE $FILESIZE $SERVER_IP'"
